@@ -1,6 +1,8 @@
+#!/usr/bin/python
+
 #############################################################################
 #
-# Copyright 2014, Yotam Rubin <yotamrubin@gmail.com>
+# Copyright 2014, Yotam Rubin <yotam@wizery.com>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,10 +25,11 @@ import sys
 from clang import cindex
 from clang.cindex import CursorKind as ck
 from clang.cindex import TypeKind as tk
-from IPython import embed
 from clike import *
 import click
 import os
+import sys; sys.path.append('/home/yotam/Code/cautojson')
+from logbook import *
 from autojson import struct_jsonable, StructNotJsonable, struct_serializer_function_name, struct_parser_function_name
 
 class ChildNotParam(Exception):
@@ -63,11 +66,12 @@ def _pointer_type(t):
 
 def _type_serializable(t):
     decl = t.get_declaration()
-    if t.kind == tk.UNEXPOSED and decl.kind == ck.STRUCT_DECL:
+    if t.kind in [tk.UNEXPOSED, tk.RECORD] and decl.kind == ck.STRUCT_DECL:
         if struct_jsonable(decl):
             return True
         else:
-           return False
+            import IPython; IPython.embed()
+            return False
 
     if decl.kind == ck.ENUM_DECL:
         return True
@@ -81,10 +85,11 @@ def _type_serializable(t):
         return True
 
 def _verify_output_parameter(n):
-    if not _pointer_type(n.type):
+    t = n.type.get_canonical()
+    if not _pointer_type(t):
         raise OutputParameterMustBePointer(n.displayname)
 
-    pointee = n.type.get_pointee()
+    pointee = t.get_pointee()
     if _pointer_type(pointee):
         if not _type_serializable(pointee.get_pointee()):
             raise ParameterNotSerializable(n.displayname, pointee.kind)
@@ -96,8 +101,9 @@ def _verify_output_parameter(n):
 
 
 def _verify_input_parameter(n):
-    if not _type_serializable(n.type):
-        raise ParameterNotSerializable(n.displayname, n.type.kind)
+    t = n.type.get_canonical()
+    if not _type_serializable(t):
+        raise ParameterNotSerializable(n.displayname, t.kind)
 
 def _output_parameter_array(t):
     return t.type.get_pointee().kind == tk.POINTER
@@ -129,10 +135,14 @@ def _function_args_serializable(node):
 
     return True
 
-def _get_function_decls(root):
+def _get_function_decls(root, h_file):
     functions = []
     def aux(node):
+        if hasattr(node.location.file, 'name') and node.location.file.name != h_file:
+            return
+
         if node.kind == ck.FUNCTION_DECL:
+            info('Validating function {0}'.format(node.displayname))
             if _function_args_serializable(node):
                 functions.append(node)
             else:
@@ -175,14 +185,15 @@ def _get_function_prototype(function_decl):
     return file(filename, 'rb').read()[start_offset:end_offset]
 
 def _serialize_parameter(m, parameter):
-    if parameter.type.kind == tk.UNEXPOSED and struct_jsonable(parameter.type.get_declaration()):
+    t = parameter.type.get_canonical()
+    if t.kind in [tk.UNEXPOSED, tk.RECORD] and struct_jsonable(t.get_declaration()):
         decl = parameter.type.get_declaration()
         serialized_name = '{0}(&{1})'.format(struct_serializer_function_name(decl), parameter.displayname)
 
-    if parameter.type.kind == tk.INT:
+    if t.kind == tk.INT:
         serialized_name = 'json_integer({0})'.format(parameter.displayname)
 
-    if parameter.type.kind == tk.UNEXPOSED and parameter.type.get_declaration().kind == ck.ENUM_DECL:
+    if t.kind == tk.UNEXPOSED and t.get_declaration().kind == ck.ENUM_DECL:
         serialized_name = 'json_integer({0})'.format(parameter.displayname)
 
     m.stmt('json_object_set(obj, "{0}", {1})'.format(parameter.displayname, serialized_name))
@@ -261,7 +272,8 @@ def _serialize_parameters(m, parameters):
 
 def _parse_results(m, parameters):
     _get_result_memeber(m, '__status', '__status_json')
-    with m.block('if (CRPC_SUCCESS != json_integer_value(__status_json))'):
+    m.stmt('rc = json_integer_value(__status_json)')
+    with m.block('if (rc < 0)'):
         _output_error(m, 'Remote API returned an error')
         m.stmt('goto free_result')
 
@@ -301,7 +313,7 @@ def _generate_code(h_input, c_module):
     i = cindex.Index.create()
     t = i.parse(h_input, args = ["-C"])
 
-    for function_decl in _get_function_decls(t.cursor):
+    for function_decl in _get_function_decls(t.cursor, h_input):
         _generate_function_stub(c_module, function_decl)
 
 
