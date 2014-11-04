@@ -248,6 +248,9 @@ def _parse_type(m, json_name, name, pointee):
 
 def _parse_parameter(m, parameter):
     param_json_name = parameter.displayname + '_json'
+    if parameter.displayname.endswith('_size') and parameter.displayname.startswith('out_'):
+        return
+
     _get_result_memeber(m, parameter.displayname, param_json_name)
     pointee = parameter.type.get_pointee()
     _parse_type(m, param_json_name, parameter.displayname, pointee)
