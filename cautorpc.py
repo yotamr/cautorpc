@@ -204,7 +204,8 @@ def _get_result_memeber(m, key, json_t_ptr):
     m.stmt('json_t *{0} = json_object_get(result, "{1}")'.format(json_t_ptr, key))
 
     with m.block('if (NULL == {0})'.format(json_t_ptr)):
-        _output_error(m, "Missing paramater named {0} from result".format(key))
+        _output_error(m, "Missing parameter named {0} from result".format(key))
+        _output_error(m, "_result = -1")
         m.stmt('goto free_result')
 
 def _parse_array(m, json_name, name, pointee):
@@ -227,13 +228,15 @@ def _parse_array(m, json_name, name, pointee):
 def _parse_type(m, json_name, name, pointee):
     if pointee.kind in [tk.UNEXPOSED, tk.RECORD] and struct_jsonable(pointee.get_declaration()):
         decl = pointee.get_declaration()
-        m.stmt('rc = {0}({1}, {2})'.format(struct_parser_function_name(decl),
-                                                 json_name,
-                                                 name))
+        with m.block(''):
+            m.stmt('int rc = {0}({1}, {2})'.format(struct_parser_function_name(decl),
+                                               json_name,
+                                               name))
 
-        with m.block('if (0 != rc)'):
-            _output_error(m, 'Error parsing object parameter {0}'.format(name))
-            m.stmt('goto free_result')
+            with m.block('if (0 != rc)'):
+                _output_error(m, 'Error parsing object parameter {0}'.format(name))
+                m.stmt('_status = rc');
+                m.stmt('goto free_result')
 
     if (pointee.kind == tk.INT or
         pointee.kind in [tk.UNEXPOSED, tk.RECORD] and pointee.get_declaration().kind == ck.ENUM_DECL):
@@ -271,8 +274,8 @@ def _serialize_parameters(m, parameters):
 
 def _parse_results(m, parameters):
     _get_result_memeber(m, '__status', '__status_json')
-    m.stmt('rc = json_integer_value(__status_json)')
-    with m.block('if (rc < 0)'):
+    m.stmt('_status = json_integer_value(__status_json)')
+    with m.block('if (_status < 0)'):
         _output_error(m, 'Remote API returned an error')
         m.stmt('goto free_result')
 
@@ -296,7 +299,7 @@ def _parse_results(m, parameters):
 
 def _generate_function_stub(m, function_decl):
     with m.block(_get_function_prototype(function_decl)):
-        m.stmt('int rc = -1')
+        m.stmt('int _status = -1')
         m.stmt("json_t *obj = json_object()")
         m.stmt('json_object_set(obj, "__api_name", json_string("{0}"))'.format(function_decl.spelling))
         _serialize_parameters(m, function_decl.get_arguments())
@@ -305,7 +308,7 @@ def _generate_function_stub(m, function_decl):
         _parse_results(m, function_decl.get_arguments())
         m.stmt('free_request:', suffix = '')
         m.stmt('json_decref(obj)')
-        m.stmt('return rc')
+        m.stmt('return _status')
 
 
 def _generate_code(h_input, c_module):
