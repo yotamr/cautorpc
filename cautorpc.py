@@ -246,9 +246,15 @@ def _parse_type(m, json_name, name, pointee):
         _parse_array(m, json_name, name, pointee)
 
 
+def _calculated_size_parameter(parameter_name):
+    if parameter_name.endswith('_size') and parameter_name.startswith('out_'):
+        return True
+    else:
+        return False
+
 def _parse_parameter(m, parameter):
     param_json_name = parameter.displayname + '_json'
-    if parameter.displayname.endswith('_size') and parameter.displayname.startswith('out_'):
+    if _calculated_size_parameter(parameter.displayname):
         return
 
     _get_result_memeber(m, parameter.displayname, param_json_name)
