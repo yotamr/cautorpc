@@ -70,7 +70,6 @@ def _type_serializable(t):
         if struct_jsonable(decl):
             return True
         else:
-            import IPython; IPython.embed()
             return False
 
     if decl.kind == ck.ENUM_DECL:
@@ -220,13 +219,13 @@ def _parse_array(m, json_name, name, pointee):
         array_data_name  = name + '_array_data'
         output_name = '(*{0} + i)'.format(name)
         m.stmt('json_t *{0} = json_array_get({1}, i)'.format(array_data_name, json_name))
-        _parse_type(m, array_data_name, output_name, pointee.get_pointee())
+        _parse_type(m, array_data_name, output_name, pointee.get_pointee().get_canonical())
 
     array_size_output = '{0}_size'.format(name)
     m.stmt("*{0} = {1}".format(array_size_output, array_size))
 
 def _parse_type(m, json_name, name, pointee):
-    if pointee.kind == tk.UNEXPOSED and struct_jsonable(pointee.get_declaration()):
+    if pointee.kind in [tk.UNEXPOSED, tk.RECORD] and struct_jsonable(pointee.get_declaration()):
         decl = pointee.get_declaration()
         m.stmt('rc = {0}({1}, {2})'.format(struct_parser_function_name(decl),
                                                  json_name,
@@ -237,7 +236,7 @@ def _parse_type(m, json_name, name, pointee):
             m.stmt('goto free_result')
 
     if (pointee.kind == tk.INT or
-        pointee.kind == tk.UNEXPOSED and pointee.get_declaration().kind == ck.ENUM_DECL):
+        pointee.kind in [tk.UNEXPOSED, tk.RECORD] and pointee.get_declaration().kind == ck.ENUM_DECL):
         m.stmt('*{0} = json_integer_value({1})'.format(name, json_name))
 
     if pointee.kind == tk.POINTER:
