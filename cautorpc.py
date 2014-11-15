@@ -210,11 +210,12 @@ def _get_result_memeber(m, key, json_t_ptr):
 
 def _parse_array(m, json_name, name, pointee):
     array_size = name + '_array_size'
-    m.stmt('size_t {0} = json_array_size({1})'.format(array_size, json_name))
-    with m.block('if (0 == {0})'.format(array_size)):
+    with m.block('if (!json_is_array({0}))'.format(json_name)):
         _output_error(m, '{0} is not an array'.format(name))
         m.stmt("_status = -1")
         m.stmt('goto free_result')
+
+    m.stmt('size_t {0} = json_array_size({1})'.format(array_size, json_name))
 
     m.stmt('*{0} = ({1})malloc(({2} + 1)* sizeof(**{0}))'.format(name, pointee.spelling, array_size))
     with m.block('for (int i = 0; i < {0}; i++)'.format(array_size)):
