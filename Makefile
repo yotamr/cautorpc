@@ -1,14 +1,17 @@
-all: test_client
+all: libcrpc.a libcrpc.so
 
-CFLAGS:=-Wall -c -g -Werror -std=c99
+CFLAGS:=-Wall $(__DEBUG) -fPIC -c -g -Werror -std=c99
 TEST_FILES:=test_client
 TEST_OBJS=$(TEST_FILES:%=%.o)
-
+SO_LIBS=-lczmq -ljansson
 LIBCRPC_FILES:=cautorpc
 LIBCRPC_OBJS=$(LIBCRPC_FILES:%=%.o)
 
-libcrpc: $(LIBCRPC_OBJS)
+libcrpc.a: $(LIBCRPC_OBJS)
 	 ar cr libcrpc.a $(LIBCRPC_OBJS)
+
+libcrpc.so: $(LIBCRPC_OBJS)
+	gcc -shared $^ $(SO_LIBS) -o $@
 
 example_structs.h example_structs.c:
 	python /home/yotam/Code/cautojson/autojson.py example.h example_structs.h example_structs.c
