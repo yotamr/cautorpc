@@ -29,6 +29,9 @@ json_t *crpc_make_request(json_t *request)
     int rc = zstr_send(g_client_state.zsock, json_str);
     free(json_str);
     DEBUG("zstr_send_rc = %d", rc);
+    if (0 != rc) {
+        return NULL;
+    }
 
     char *response = zstr_recv(g_client_state.zsock);
     if (NULL == response) {
