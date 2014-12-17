@@ -192,7 +192,7 @@ def _serialize_parameter(m, parameter):
     if t.kind == tk.INT:
         serialized_name = 'json_integer({0})'.format(parameter.displayname)
 
-    if t.kind == tk.UNEXPOSED and t.get_declaration().kind == ck.ENUM_DECL:
+    if t.kind == tk.UNEXPOSED and t.get_declaration().kind == ck.ENUM_DECL or t.kind == tk.ENUM:
         serialized_name = 'json_integer({0})'.format(parameter.displayname)
 
     m.stmt('json_object_set(obj, "{0}", {1})'.format(parameter.displayname, serialized_name))
@@ -228,6 +228,7 @@ def _parse_array(m, json_name, name, pointee):
     m.stmt("*{0} = {1}".format(array_size_output, array_size))
 
 def _parse_type(m, json_name, name, pointee):
+    pointee = pointee.get_canonical()
     if pointee.kind in [tk.UNEXPOSED, tk.RECORD] and struct_jsonable(pointee.get_declaration()):
         decl = pointee.get_declaration()
         with m.block(''):
@@ -240,12 +241,20 @@ def _parse_type(m, json_name, name, pointee):
                 m.stmt('_status = rc');
                 m.stmt('goto free_result')
 
+        return
+    
     if (pointee.kind == tk.INT or
+        pointee.kind == tk.ENUM or
         pointee.kind in [tk.UNEXPOSED, tk.RECORD] and pointee.get_declaration().kind == ck.ENUM_DECL):
         m.stmt('*{0} = json_integer_value({1})'.format(name, json_name))
+        return
 
     if pointee.kind == tk.POINTER:
         _parse_array(m, json_name, name, pointee)
+        return
+
+    raise ParameterNotSerializable(name, pointee.kind)
+
 
 
 def _calculated_size_parameter(parameter_name):
