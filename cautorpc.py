@@ -123,7 +123,7 @@ def _function_args_serializable(node):
         if _output_parameter(child):
             _verify_output_parameter(child)
             if _output_parameter_array(child):
-                if len(children) == index:
+                if len(children) - 1 == index:
                     raise MissingSizeOutputForArray(child.displayname)
                 if children[index + 1].spelling != child.displayname + '_size':
                     raise MissingSizeOutputForArray(child.displayname)
