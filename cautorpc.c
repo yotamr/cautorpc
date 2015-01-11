@@ -7,9 +7,15 @@ static struct {
     zsock_t *zsock;
 } g_client_state;
 
-int crpc_client_init(void)
+#define DEFAULT_URI "tcp://127.0.0.1:9000"
+
+int crpc_client_init(char *uri)
 {
-    g_client_state.zsock = zsock_new_req("tcp://127.0.0.1:9000");
+    if (uri == NULL) {
+        uri = DEFAULT_URI;
+    }
+
+    g_client_state.zsock = zsock_new_req(uri);
     if (NULL == g_client_state.zsock)  {
         return -1;
     }

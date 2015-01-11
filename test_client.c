@@ -5,7 +5,7 @@
 int main(void)
 {
     int rc;
-    rc = crpc_client_init();
+    rc = crpc_client_init(NULL);
     if (0 != rc) {
         DEBUG("Error initializing crpc client (rc = %d)", rc);
         return 1;
